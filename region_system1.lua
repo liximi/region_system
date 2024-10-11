@@ -1,3 +1,5 @@
+--该版本的区域系统移除了对is_water的记录，改为在子类中覆写IsWater函数来实现对应功能。
+--目的是减少内存占用。
 local DIR = {
 	X_POSITIVE = 1,
 	Y_POSITIVE = 2,
@@ -154,7 +156,6 @@ local RegionSystem = {
 		space: 该地块是否是可通过的空地, true表示为空, false表示有墙体或其他阻碍物
 		region: 切片分组ID, 整数, space为false的地块region固定为0
 		is_door: 该地块是否是门
-		is_water: 该地块是否是水域
 	]]
 	regions = {},	--不记录ID为0的region, {tiles = {y={x=tile}}, tiles_count = int, passable_edges = {target_region_id = edge_code}, room = int}
 	rooms = {},		--不记录ID为0的房间, {regions = {array of region's id}, type = int(ROOM_TYPES)}
@@ -398,8 +399,7 @@ function RegionSystem:IsPassable(x, y)
 	return self.tiles[y] and self.tiles[y][x] and self.tiles[y][x].space
 end
 
-function RegionSystem:IsWater(x, y)
-	return self.tiles[y] and self.tiles[y][x] and self.tiles[y][x].is_water == true
+function RegionSystem:IsWater(x, y)		--需要在子类中覆写该函数
 end
 
 function RegionSystem:IsDoorRegion(region_id)
@@ -563,7 +563,7 @@ end
 
 --#endregion
 --------------------------------------------------
---#region 添加/移除墙体、门和水域
+--#region 添加/移除墙体和门
 
 function RegionSystem:AddWalls(walls)	--{x, y}
 	local space_datas = {}
@@ -629,58 +629,6 @@ function RegionSystem:RemoveDoors(doors)	--{x, y}
 	else
 		self:private_SetSpaceBatch(space_datas)
 	end
-end
-
-function RegionSystem:AddWaters(waters)	 --{x, y}
-	local sections = {}		-- y = {x = true}
-	for i, pos in ipairs(waters) do
-		local x, y = pos[1], pos[2]
-		if self.tiles[y] and self.tiles[y][x] then
-			self.tiles[y][x].is_water = true
-		end
-
-		local base_x, base_y = self:GetSectionAABB(pos[1], pos[2])
-		if base_x then
-			if not sections[base_y] then
-				sections[base_y] = {}
-			end
-			sections[base_y][base_x] = true
-		end
-	end
-
-	for y, xs in pairs(sections) do
-		for x, _ in pairs(xs) do
-			self:RefreashSection(x, y)
-		end
-	end
-	self:RefreashRooms()
-	self:private_PushEvent("section_update_mult", sections)
-end
-
-function RegionSystem:RemoveWaters(waters)	--{x. y}
-	local sections = {}		-- y = {x = true}
-	for i, pos in ipairs(waters) do
-		local x, y = pos[1], pos[2]
-		if self.tiles[y] and self.tiles[y][x] and self.tiles[y][x].is_water then
-			self.tiles[y][x].is_water = nil
-		end
-
-		local base_x, base_y = self:GetSectionAABB(pos[1], pos[2])
-		if base_x then
-			if not sections[base_y] then
-				sections[base_y] = {}
-			end
-			sections[base_y][base_x] = true
-		end
-	end
-
-	for y, xs in pairs(sections) do
-		for x, _ in pairs(xs) do
-			self:RefreashSection(x, y)
-		end
-	end
-	self:RefreashRooms()
-	self:private_PushEvent("section_update_mult", sections)
 end
 
 --#endregion
@@ -772,7 +720,6 @@ end
 -- function RegionSystem:ListenForRegionEvent(event, ...) end	监听抛出的事件，参见private_PushEvent函数
 
 --#endregion
-
 
 --------------------------------------------------
 -- 私有函数 Private Functions
